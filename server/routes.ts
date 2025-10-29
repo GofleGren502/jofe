@@ -1,15 +1,511 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { db } from "./db";
+import { 
+  children, 
+  childHealth,
+  childAllergies,
+  childMedications,
+  childDocuments,
+  dailyActivities,
+  attendanceRecords,
+  staff,
+  chatThreads,
+  messages,
+  notifications,
+  invoices,
+  subscriptions,
+  additionalServices,
+  trustedContacts,
+  users,
+} from "@shared/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { requireAuth, requireRole, canAccessChild } from "./middleware/rbac";
+import { logAccess } from "./middleware/accessLog";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+export function registerRoutes(app: Express) {
+  // ============================================================================
+  // CHILDREN ROUTES
+  // ============================================================================
+  
+  app.get("/api/children", requireAuth, async (req, res) => {
+    try {
+      const childrenData = await db.select().from(children);
+      
+      const enrichedChildren = await Promise.all(
+        childrenData.map(async (child) => {
+          const allergiesList = await db
+            .select()
+            .from(childAllergies)
+            .where(eq(childAllergies.childId, child.id));
+          
+          const medicationsList = await db
+            .select()
+            .from(childMedications)
+            .where(and(
+              eq(childMedications.childId, child.id),
+              eq(childMedications.isActive, true)
+            ));
+          
+          const documentsList = await db
+            .select()
+            .from(childDocuments)
+            .where(eq(childDocuments.childId, child.id));
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+          return {
+            ...child,
+            allergies: allergiesList,
+            medications: medicationsList,
+            documents: documentsList,
+          };
+        })
+      );
 
-  const httpServer = createServer(app);
-
-  return httpServer;
+      res.json(enrichedChildren);
+    } catch (error) {
+      console.error("Error fetching children:", error);
+      res.status(500).json({ message: "Failed to fetch children" });
+    }
+  });
+  
+  app.get("/api/children/:id", requireAuth, canAccessChild, logAccess("child"), async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      
+      const [child] = await db
+        .select()
+        .from(children)
+        .where(eq(children.id, childId))
+        .limit(1);
+      
+      if (!child) {
+        return res.status(404).json({ message: "Child not found" });
+      }
+      
+      res.json(child);
+    } catch (error) {
+      console.error("Error fetching child:", error);
+      res.status(500).json({ message: "Failed to fetch child" });
+    }
+  });
+  
+  app.get("/api/children/:id/activities", requireAuth, canAccessChild, async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      const date = req.query.date as string || new Date().toISOString().split('T')[0];
+      
+      const activities = await db
+        .select()
+        .from(dailyActivities)
+        .where(and(
+          eq(dailyActivities.childId, childId),
+          eq(dailyActivities.date, date)
+        ))
+        .orderBy(dailyActivities.time);
+      
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      res.status(500).json({ message: "Failed to fetch activities" });
+    }
+  });
+  
+  app.get("/api/children/:id/health", requireAuth, canAccessChild, logAccess("health"), async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      
+      const [healthData] = await db
+        .select()
+        .from(childHealth)
+        .where(eq(childHealth.childId, childId))
+        .limit(1);
+      
+      const allergiesList = await db
+        .select()
+        .from(childAllergies)
+        .where(eq(childAllergies.childId, childId));
+      
+      const medicationsList = await db
+        .select()
+        .from(childMedications)
+        .where(eq(childMedications.childId, childId));
+      
+      // Return safe default if no health record exists
+      const response = healthData ? {
+        ...healthData,
+        allergies: allergiesList,
+        medications: medicationsList,
+      } : {
+        childId,
+        bloodType: null,
+        allergies: allergiesList,
+        medications: medicationsList,
+      };
+      
+      res.json(response);
+    } catch (error) {
+      console.error("Error fetching health data:", error);
+      res.status(500).json({ message: "Failed to fetch health data" });
+    }
+  });
+  
+  app.get("/api/children/:id/documents", requireAuth, canAccessChild, logAccess("documents"), async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      
+      const documents = await db
+        .select()
+        .from(childDocuments)
+        .where(eq(childDocuments.childId, childId))
+        .orderBy(desc(childDocuments.createdAt));
+      
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+  
+  app.get("/api/children/:id/invoices", requireAuth, canAccessChild, async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      
+      const invoicesList = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.childId, childId))
+        .orderBy(desc(invoices.createdAt));
+      
+      res.json(invoicesList);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+  
+  // ============================================================================
+  // STAFF ROUTES
+  // ============================================================================
+  
+  app.get("/api/staff", requireAuth, async (req, res) => {
+    try {
+      // Mock staff data
+      const mockStaff = [
+        {
+          id: 1,
+          userId: "staff-1",
+          facilityId: 1,
+          position: "teacher",
+          phone: "+7 777 234 5678",
+          status: "active",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: {
+            id: "staff-1",
+            email: "teacher1@kindergarten.kz",
+            firstName: "Гульнара",
+            lastName: "Жаксыбекова",
+            profileImageUrl: null,
+            currentRole: "teacher",
+            language: "ru",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        {
+          id: 2,
+          userId: "staff-2",
+          facilityId: 1,
+          position: "assistant",
+          phone: "+7 777 345 6789",
+          status: "active",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          user: {
+            id: "staff-2",
+            email: "assistant1@kindergarten.kz",
+            firstName: "Айгерім",
+            lastName: "Нурланова",
+            profileImageUrl: null,
+            currentRole: "teacher",
+            language: "kk",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      ];
+      
+      res.json(mockStaff);
+    } catch (error) {
+      res.status(500).send("Failed to fetch staff");
+    }
+  });
+  
+  // ============================================================================
+  // BILLING ROUTES
+  // ============================================================================
+  
+  app.get("/api/invoices", requireAuth, async (req, res) => {
+    try {
+      // Mock invoices for current user's children
+      const mockInvoices = [
+        {
+          id: 1,
+          childId: 1,
+          invoiceNumber: "INV-2024-001",
+          amount: "85000.00",
+          currency: "KZT",
+          status: "pending",
+          dueDate: "2024-11-15",
+          paidAt: null,
+          description: "Ежемесячная оплата - Ноябрь 2024",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      
+      res.json(mockInvoices);
+    } catch (error) {
+      res.status(500).send("Failed to fetch invoices");
+    }
+  });
+  
+  app.get("/api/subscriptions", requireAuth, async (req, res) => {
+    try {
+      // Mock subscriptions
+      const mockSubscriptions = [
+        {
+          id: 1,
+          childId: 1,
+          planName: "Полный день",
+          monthlyAmount: "85000.00",
+          isAutoCharge: false,
+          nextBillingDate: "2024-12-01",
+          status: "active",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      
+      res.json(mockSubscriptions);
+    } catch (error) {
+      res.status(500).send("Failed to fetch subscriptions");
+    }
+  });
+  
+  app.get("/api/services", requireAuth, async (req, res) => {
+    try {
+      // Mock additional services
+      const mockServices = [
+        {
+          id: 1,
+          facilityId: 1,
+          name: "Английский язык",
+          description: "Занятия по английскому языку для детей 4-6 лет",
+          price: "15000.00",
+          ageMin: 4,
+          ageMax: 6,
+          daysOfWeek: [1, 3, 5],
+          maxParticipants: 10,
+          imageUrl: null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 2,
+          facilityId: 1,
+          name: "Музыка и танцы",
+          description: "Развитие музыкальных способностей и координации",
+          price: "12000.00",
+          ageMin: 3,
+          ageMax: 6,
+          daysOfWeek: [2, 4],
+          maxParticipants: 15,
+          imageUrl: null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      
+      res.json(mockServices);
+    } catch (error) {
+      res.status(500).send("Failed to fetch services");
+    }
+  });
+  
+  // ============================================================================
+  // CHAT ROUTES
+  // ============================================================================
+  
+  app.get("/api/chat/threads", requireAuth, async (req, res) => {
+    try {
+      // Mock chat threads
+      const mockThreads = [
+        {
+          id: 1,
+          type: "direct",
+          groupId: 1,
+          title: "Воспитатель Гульнара",
+          isPinned: false,
+          createdAt: new Date(Date.now() - 86400000),
+          updatedAt: new Date(Date.now() - 3600000),
+        },
+        {
+          id: 2,
+          type: "group_channel",
+          groupId: 1,
+          title: "Группа Ласточка - Родители",
+          isPinned: true,
+          createdAt: new Date(Date.now() - 172800000),
+          updatedAt: new Date(),
+        },
+      ];
+      
+      res.json(mockThreads);
+    } catch (error) {
+      res.status(500).send("Failed to fetch chat threads");
+    }
+  });
+  
+  app.get("/api/chat/threads/:threadId/messages", requireAuth, async (req, res) => {
+    try {
+      const threadId = parseInt(req.params.threadId);
+      
+      // Mock messages
+      const mockMessages = [
+        {
+          id: 1,
+          threadId,
+          senderId: "staff-1",
+          content: "Добрый день! Сегодня у нас была очень интересная творческая активность.",
+          isImportant: false,
+          createdAt: new Date(Date.now() - 3600000),
+          updatedAt: new Date(Date.now() - 3600000),
+          sender: {
+            id: "staff-1",
+            email: "teacher1@kindergarten.kz",
+            firstName: "Гульнара",
+            lastName: "Жаксыбекова",
+            profileImageUrl: null,
+            currentRole: "teacher",
+            language: "ru",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          readReceipts: [],
+        },
+        {
+          id: 2,
+          threadId,
+          senderId: req.user!.id,
+          content: "Спасибо за информацию! Айнур очень любит рисовать.",
+          isImportant: false,
+          createdAt: new Date(Date.now() - 1800000),
+          updatedAt: new Date(Date.now() - 1800000),
+          sender: req.user!,
+          readReceipts: [
+            {
+              id: 1,
+              messageId: 2,
+              userId: "staff-1",
+              readAt: new Date(Date.now() - 1200000),
+            }
+          ],
+        },
+      ];
+      
+      res.json(mockMessages);
+    } catch (error) {
+      res.status(500).send("Failed to fetch messages");
+    }
+  });
+  
+  app.get("/api/messages/recent", requireAuth, async (req, res) => {
+    try {
+      // Mock recent messages for dashboard
+      const mockMessages = [
+        {
+          id: 1,
+          threadId: 1,
+          senderId: "staff-1",
+          content: "Добрый день! Сегодня у нас была очень интересная творческая активность.",
+          isImportant: false,
+          createdAt: new Date(Date.now() - 3600000),
+          updatedAt: new Date(Date.now() - 3600000),
+          readReceipts: [],
+        },
+      ];
+      
+      res.json(mockMessages);
+    } catch (error) {
+      res.status(500).send("Failed to fetch recent messages");
+    }
+  });
+  
+  // ============================================================================
+  // NOTIFICATIONS ROUTES
+  // ============================================================================
+  
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    try {
+      // Mock notifications
+      const mockNotifications = [
+        {
+          id: 1,
+          userId: req.user!.id,
+          type: "payment",
+          priority: "normal",
+          title: "Новый счёт",
+          message: "Счёт INV-2024-001 на сумму 85 000 ₸ ожидает оплаты",
+          relatedId: 1,
+          isRead: false,
+          createdAt: new Date(Date.now() - 7200000),
+        },
+        {
+          id: 2,
+          userId: req.user!.id,
+          type: "message",
+          priority: "normal",
+          title: "Новое сообщение",
+          message: "Воспитатель Гульнара отправила сообщение",
+          relatedId: 1,
+          isRead: false,
+          createdAt: new Date(Date.now() - 3600000),
+        },
+      ];
+      
+      res.json(mockNotifications);
+    } catch (error) {
+      res.status(500).send("Failed to fetch notifications");
+    }
+  });
+  
+  // ============================================================================
+  // TRUSTED CONTACTS ROUTES
+  // ============================================================================
+  
+  app.get("/api/trusted-contacts", requireAuth, async (req, res) => {
+    try {
+      // Mock trusted contacts
+      const mockContacts = [
+        {
+          id: 1,
+          parentUserId: req.user!.id,
+          childId: 1,
+          fullName: "Сейтов Нурлан",
+          relationship: "Отец",
+          phone: "+7 777 999 8888",
+          email: "nurlan@example.com",
+          accessExpiresAt: null,
+          isActive: true,
+          createdAt: new Date(),
+        },
+      ];
+      
+      res.json(mockContacts);
+    } catch (error) {
+      res.status(500).send("Failed to fetch trusted contacts");
+    }
+  });
 }

@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Settings,
   Baby,
+  Video,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { User } from "@shared/schema";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -70,6 +72,12 @@ export function AppSidebar() {
       testId: "link-chats",
     },
     {
+      title: t("cameras"),
+      icon: Video,
+      url: "/cameras",
+      testId: "link-cameras",
+    },
+    {
       title: t("settings"),
       icon: Settings,
       url: "/settings",
@@ -77,7 +85,7 @@ export function AppSidebar() {
     },
   ];
 
-  const getInitials = (user: typeof user) => {
+  const getInitials = (user: User | undefined) => {
     if (!user) return "U";
     if (user.firstName && user.lastName) {
       return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();

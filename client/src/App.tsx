@@ -20,6 +20,7 @@ import ChildProfile from "@/pages/child-profile";
 import StaffList from "@/pages/staff-list";
 import Billing from "@/pages/billing";
 import Chat from "@/pages/chat";
+import Cameras from "@/pages/cameras";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -63,6 +64,7 @@ function AuthenticatedRouter() {
         <Route path="/billing" component={Billing} />
         <Route path="/chat" component={Chat} />
         <Route path="/chat/:threadId" component={Chat} />
+        <Route path="/cameras" component={Cameras} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

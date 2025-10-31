@@ -3,6 +3,7 @@ import { Baby, Video, MessageSquare, CreditCard } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Link } from "wouter";
 
 export default function Landing() {
   const { t } = useTranslation();
@@ -20,7 +21,7 @@ export default function Landing() {
             <LanguageSwitcher />
             <ThemeToggle />
             <Button asChild data-testid="button-login">
-              <a href="/api/login">{t("login")}</a>
+              <Link href="/login">{t("login")}</Link>
             </Button>
           </div>
         </div>
@@ -42,7 +43,7 @@ export default function Landing() {
             }
           </p>
           <Button size="lg" asChild data-testid="button-get-started">
-            <a href="/api/login">{t("login")}</a>
+            <Link href="/login">{t("login")}</Link>
           </Button>
         </div>
       </section>

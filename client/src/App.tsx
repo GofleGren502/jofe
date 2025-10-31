@@ -13,6 +13,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 
 // Pages
 import Landing from "@/pages/landing";
+import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import ChildrenList from "@/pages/children-list";
 import ChildProfile from "@/pages/child-profile";
@@ -73,6 +74,7 @@ function UnauthenticatedRouter() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/login" component={Login} />
       <Route component={Landing} />
     </Switch>
   );

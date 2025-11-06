@@ -117,7 +117,7 @@ export default function Dashboard() {
   });
   
   const { data: messages, isLoading: loadingMessages } = useQuery<Message[]>({
-    queryKey: ["/api/messages", "recent"],
+    queryKey: ["/api/messages/recent"],
   });
   
   // Fetch upcoming events

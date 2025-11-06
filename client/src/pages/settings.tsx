@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Globe, Monitor, Users, LogOut, Plus, Trash2 } from "lucide-react";
+import { Globe, Monitor, Users, Plus, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { TrustedContact } from "@shared/schema";
 
@@ -22,10 +22,6 @@ export default function Settings() {
   
   const { data: trustedContacts } = useQuery<TrustedContact[]>({
     queryKey: ["/api/trusted-contacts"],
-  });
-  
-  const { data: sessions } = useQuery<any[]>({
-    queryKey: ["/api/sessions"],
   });
   
   return (
@@ -160,59 +156,6 @@ export default function Settings() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
-        
-        {/* Active Sessions */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Monitor className="h-5 w-5" />
-                  {t("activeSessions")}
-                </CardTitle>
-                <CardDescription>
-                  {currentLanguage === "kk"
-                    ? "Сіздің белсенді құрылғыларыңыз"
-                    : "Ваши активные устройства"
-                  }
-                </CardDescription>
-              </div>
-              {sessions && sessions.length > 1 && (
-                <Button variant="destructive" size="sm" data-testid="button-logout-all">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  {t("logoutAll")}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <Card className="bg-muted/30">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Monitor className="h-4 w-4 text-muted-foreground" />
-                        <h4 className="font-medium">
-                          {currentLanguage === "kk" ? "Ағымдағы құрылғы" : "Текущее устройство"}
-                        </h4>
-                        <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-700 dark:text-green-300">
-                          {currentLanguage === "kk" ? "Белсенді" : "Активно"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Chrome on Windows • Almaty, Kazakhstan
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {currentLanguage === "kk" ? "Соңғы белсенділік" : "Последняя активность"}: {currentLanguage === "kk" ? "дәл қазір" : "только что"}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </CardContent>
         </Card>
       </div>

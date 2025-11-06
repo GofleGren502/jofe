@@ -28,6 +28,8 @@ export const invoiceStatusEnum = pgEnum("invoice_status", ["pending", "paid", "o
 export const notificationTypeEnum = pgEnum("notification_type", ["payment", "message", "event", "urgent"]);
 export const notificationPriorityEnum = pgEnum("notification_priority", ["urgent", "normal", "summary"]);
 export const allergySeverityEnum = pgEnum("allergy_severity", ["mild", "moderate", "severe"]);
+export const eventTypeEnum = pgEnum("event_type", ["holiday", "event", "activity", "parent_meeting", "excursion"]);
+export const extraClassTypeEnum = pgEnum("extra_class_type", ["english", "music", "art", "sports", "dance", "other"]);
 
 // ============================================================================
 // SESSION & AUTH (Required for Replit Auth)
@@ -200,6 +202,7 @@ export const childrenRelations = relations(children, ({ one, many }) => ({
   attendanceRecords: many(attendanceRecords),
   dailyActivities: many(dailyActivities),
   invoices: many(invoices),
+  extraClassEnrollments: many(extraClassEnrollments),
 }));
 
 export const childParents = pgTable("child_parents", {
@@ -736,6 +739,119 @@ export const accessLogs = pgTable("access_logs", {
 });
 
 // ============================================================================
+// EVENTS & CALENDAR
+// ============================================================================
+
+export const events = pgTable("events", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  facilityId: integer("facility_id").notNull().references(() => facilities.id, { onDelete: "cascade" }),
+  groupId: integer("group_id").references(() => groups.id, { onDelete: "set null" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  eventType: eventTypeEnum("event_type").notNull(),
+  startDate: timestamp("start_date", { withTimezone: true }).notNull(),
+  endDate: timestamp("end_date", { withTimezone: true }),
+  location: varchar("location", { length: 255 }),
+  isAllDay: boolean("is_all_day").default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const eventsRelations = relations(events, ({ one }) => ({
+  facility: one(facilities, {
+    fields: [events.facilityId],
+    references: [facilities.id],
+  }),
+  group: one(groups, {
+    fields: [events.groupId],
+    references: [groups.id],
+  }),
+}));
+
+// ============================================================================
+// EXTRA CLASSES & PERFORMANCE
+// ============================================================================
+
+export const extraClasses = pgTable("extra_classes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  facilityId: integer("facility_id").notNull().references(() => facilities.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  classType: extraClassTypeEnum("class_type").notNull(),
+  teacherName: varchar("teacher_name", { length: 255 }),
+  monthlyFee: decimal("monthly_fee", { precision: 10, scale: 2 }),
+  schedule: text("schedule"), // e.g., "Mon, Wed 15:00-16:00"
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const extraClassesRelations = relations(extraClasses, ({ one, many }) => ({
+  facility: one(facilities, {
+    fields: [extraClasses.facilityId],
+    references: [facilities.id],
+  }),
+  enrollments: many(extraClassEnrollments),
+}));
+
+export const extraClassEnrollments = pgTable("extra_class_enrollments", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  extraClassId: integer("extra_class_id").notNull().references(() => extraClasses.id, { onDelete: "cascade" }),
+  childId: integer("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+  enrollmentDate: date("enrollment_date").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const extraClassEnrollmentsRelations = relations(extraClassEnrollments, ({ one, many }) => ({
+  extraClass: one(extraClasses, {
+    fields: [extraClassEnrollments.extraClassId],
+    references: [extraClasses.id],
+  }),
+  child: one(children, {
+    fields: [extraClassEnrollments.childId],
+    references: [children.id],
+  }),
+  attendanceRecords: many(extraClassAttendance),
+  performanceRecords: many(extraClassPerformance),
+}));
+
+export const extraClassAttendance = pgTable("extra_class_attendance", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  enrollmentId: integer("enrollment_id").notNull().references(() => extraClassEnrollments.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  attended: boolean("attended").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const extraClassAttendanceRelations = relations(extraClassAttendance, ({ one }) => ({
+  enrollment: one(extraClassEnrollments, {
+    fields: [extraClassAttendance.enrollmentId],
+    references: [extraClassEnrollments.id],
+  }),
+}));
+
+export const extraClassPerformance = pgTable("extra_class_performance", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  enrollmentId: integer("enrollment_id").notNull().references(() => extraClassEnrollments.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  score: integer("score"), // 0-100
+  grade: varchar("grade", { length: 10 }), // A, B, C, etc.
+  notes: text("notes"),
+  teacherComments: text("teacher_comments"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const extraClassPerformanceRelations = relations(extraClassPerformance, ({ one }) => ({
+  enrollment: one(extraClassEnrollments, {
+    fields: [extraClassPerformance.enrollmentId],
+    references: [extraClassEnrollments.id],
+  }),
+}));
+
+// ============================================================================
 // INSERT SCHEMAS
 // ============================================================================
 
@@ -759,6 +875,11 @@ export const insertSubscriptionSchema = createInsertSchema(subscriptions);
 export const insertAdditionalServiceSchema = createInsertSchema(additionalServices);
 export const insertNotificationSchema = createInsertSchema(notifications);
 export const insertTrustedContactSchema = createInsertSchema(trustedContacts);
+export const insertEventSchema = createInsertSchema(events);
+export const insertExtraClassSchema = createInsertSchema(extraClasses);
+export const insertExtraClassEnrollmentSchema = createInsertSchema(extraClassEnrollments);
+export const insertExtraClassAttendanceSchema = createInsertSchema(extraClassAttendance);
+export const insertExtraClassPerformanceSchema = createInsertSchema(extraClassPerformance);
 
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -801,3 +922,13 @@ export type AdditionalService = typeof additionalServices.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type TrustedContact = typeof trustedContacts.$inferSelect;
 export type Camera = typeof cameras.$inferSelect;
+export type Event = typeof events.$inferSelect;
+export type ExtraClass = typeof extraClasses.$inferSelect;
+export type ExtraClassEnrollment = typeof extraClassEnrollments.$inferSelect;
+export type ExtraClassAttendance = typeof extraClassAttendance.$inferSelect;
+export type ExtraClassPerformance = typeof extraClassPerformance.$inferSelect;
+export type InsertEvent = z.infer<typeof insertEventSchema>;
+export type InsertExtraClass = z.infer<typeof insertExtraClassSchema>;
+export type InsertExtraClassEnrollment = z.infer<typeof insertExtraClassEnrollmentSchema>;
+export type InsertExtraClassAttendance = z.infer<typeof insertExtraClassAttendanceSchema>;
+export type InsertExtraClassPerformance = z.infer<typeof insertExtraClassPerformanceSchema>;

@@ -2,14 +2,14 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Baby, CreditCard, MessageSquare, TrendingUp, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Baby, CreditCard, MessageSquare, TrendingUp, ArrowRight, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency, formatDateInAlmaty, getNowInAlmaty } from "@/lib/formatters";
 import { useState } from "react";
-import type { Child, Invoice, Message } from "@shared/schema";
+import type { Child, Invoice, Message, Event } from "@shared/schema";
 
 function MiniCalendar() {
   const { currentLanguage } = useLanguage();
@@ -120,6 +120,11 @@ export default function Dashboard() {
     queryKey: ["/api/messages", "recent"],
   });
   
+  // Fetch upcoming events
+  const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
+  });
+  
   // Get today's child activity (mock for now)
   const todayChild = children?.[0];
   
@@ -129,6 +134,9 @@ export default function Dashboard() {
   
   // Get unread messages
   const unreadMessages = messages?.filter(m => !m.readReceipts?.length) || [];
+  
+  // Get upcoming events (next 5)
+  const upcomingEvents = events?.filter(event => new Date(event.startDate) >= new Date()).slice(0, 5) || [];
   
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -328,9 +336,95 @@ export default function Dashboard() {
         </Card>
       </div>
       
-      {/* Mini Calendar */}
-      <div className="max-w-sm">
-        <MiniCalendar />
+      {/* Calendar and Events Section */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <MiniCalendar />
+        </div>
+        
+        {/* Upcoming Events */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              {currentLanguage === "kk" ? "Болашақ оқиғалар" : "Предстоящие события"}
+            </CardTitle>
+            <CardDescription>
+              {currentLanguage === "kk" 
+                ? "Балабақшаның жоспарланған іс-шаралары"
+                : "Запланированные мероприятия детского сада"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingEvents ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : upcomingEvents.length > 0 ? (
+              <div className="space-y-4">
+                {upcomingEvents.map((event) => {
+                  const eventTypeLabels: Record<string, { ru: string; kk: string }> = {
+                    holiday: { ru: "Праздник", kk: "Мереке" },
+                    event: { ru: "Мероприятие", kk: "Іс-шара" },
+                    activity: { ru: "Активность", kk: "Белсенділік" },
+                    parent_meeting: { ru: "Родительское собрание", kk: "Ата-ана жиналысы" },
+                    excursion: { ru: "Экскурсия", kk: "Экскурсия" },
+                  };
+                  
+                  const eventTypeColors: Record<string, string> = {
+                    holiday: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+                    event: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+                    activity: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+                    parent_meeting: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+                    excursion: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+                  };
+                  
+                  return (
+                    <div key={event.id} className="border-l-2 border-primary pl-4 py-2" data-testid={`event-${event.id}`}>
+                      <div className="flex items-start justify-between mb-1">
+                        <h4 className="font-semibold">{event.title}</h4>
+                        <Badge className={`text-xs ${eventTypeColors[event.eventType] || ""}`}>
+                          {eventTypeLabels[event.eventType]?.[currentLanguage] || event.eventType}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {event.description}
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <CalendarIcon className="h-3 w-3" />
+                          {formatDateInAlmaty(event.startDate, "d MMM, HH:mm", currentLanguage)}
+                        </span>
+                        {event.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {event.location}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">
+                  {currentLanguage === "kk" 
+                    ? "Жақын арада жоспарланған оқиғалар жоқ"
+                    : "Нет запланированных событий"
+                  }
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

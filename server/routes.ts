@@ -17,6 +17,11 @@ import {
   additionalServices,
   trustedContacts,
   users,
+  events,
+  extraClasses,
+  extraClassEnrollments,
+  extraClassAttendance,
+  extraClassPerformance,
 } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, canAccessChild } from "./middleware/rbac";
@@ -506,6 +511,140 @@ export function registerRoutes(app: Express) {
       res.json(mockContacts);
     } catch (error) {
       res.status(500).send("Failed to fetch trusted contacts");
+    }
+  });
+  
+  // ============================================================================
+  // EVENTS ROUTES
+  // ============================================================================
+  
+  app.get("/api/events", requireAuth, async (req, res) => {
+    try {
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      let query = db.select().from(events);
+      
+      if (startDate && endDate) {
+        query = query.where(
+          and(
+            sql`${events.startDate} >= ${startDate}`,
+            sql`${events.startDate} <= ${endDate}`
+          )
+        ) as typeof query;
+      }
+      
+      const eventsList = await query.orderBy(events.startDate);
+      res.json(eventsList);
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      res.status(500).json({ message: "Failed to fetch events" });
+    }
+  });
+  
+  // ============================================================================
+  // EXTRA CLASSES ROUTES
+  // ============================================================================
+  
+  app.get("/api/extra-classes", requireAuth, async (req, res) => {
+    try {
+      const classList = await db
+        .select()
+        .from(extraClasses)
+        .where(eq(extraClasses.isActive, true));
+      
+      res.json(classList);
+    } catch (error) {
+      console.error("Error fetching extra classes:", error);
+      res.status(500).json({ message: "Failed to fetch extra classes" });
+    }
+  });
+  
+  app.get("/api/children/:id/extra-classes", requireAuth, canAccessChild, async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      
+      const enrollments = await db
+        .select({
+          enrollment: extraClassEnrollments,
+          class: extraClasses,
+        })
+        .from(extraClassEnrollments)
+        .leftJoin(extraClasses, eq(extraClassEnrollments.extraClassId, extraClasses.id))
+        .where(
+          and(
+            eq(extraClassEnrollments.childId, childId),
+            eq(extraClassEnrollments.isActive, true)
+          )
+        );
+      
+      res.json(enrollments);
+    } catch (error) {
+      console.error("Error fetching child extra classes:", error);
+      res.status(500).json({ message: "Failed to fetch extra classes" });
+    }
+  });
+  
+  app.get("/api/enrollments/:enrollmentId/attendance", requireAuth, async (req, res) => {
+    try {
+      const enrollmentId = parseInt(req.params.enrollmentId);
+      
+      const attendanceList = await db
+        .select()
+        .from(extraClassAttendance)
+        .where(eq(extraClassAttendance.enrollmentId, enrollmentId))
+        .orderBy(desc(extraClassAttendance.date));
+      
+      res.json(attendanceList);
+    } catch (error) {
+      console.error("Error fetching attendance:", error);
+      res.status(500).json({ message: "Failed to fetch attendance" });
+    }
+  });
+  
+  app.get("/api/enrollments/:enrollmentId/performance", requireAuth, async (req, res) => {
+    try {
+      const enrollmentId = parseInt(req.params.enrollmentId);
+      
+      const performanceList = await db
+        .select()
+        .from(extraClassPerformance)
+        .where(eq(extraClassPerformance.enrollmentId, enrollmentId))
+        .orderBy(desc(extraClassPerformance.date));
+      
+      res.json(performanceList);
+    } catch (error) {
+      console.error("Error fetching performance:", error);
+      res.status(500).json({ message: "Failed to fetch performance" });
+    }
+  });
+  
+  app.get("/api/children/:id/attendance", requireAuth, canAccessChild, async (req, res) => {
+    try {
+      const childId = parseInt(req.params.id);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      let query = db
+        .select()
+        .from(attendanceRecords)
+        .where(eq(attendanceRecords.childId, childId));
+      
+      if (startDate && endDate) {
+        query = query.where(
+          and(
+            eq(attendanceRecords.childId, childId),
+            sql`${attendanceRecords.date} >= ${startDate}`,
+            sql`${attendanceRecords.date} <= ${endDate}`
+          )
+        ) as typeof query;
+      }
+      
+      const records = await query.orderBy(desc(attendanceRecords.date));
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching attendance:", error);
+      res.status(500).json({ message: "Failed to fetch attendance" });
     }
   });
 }

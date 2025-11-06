@@ -30,7 +30,12 @@ import type {
   ChildAllergy, 
   ChildMedication,
   ChildDocument,
-  Invoice 
+  Invoice,
+  AttendanceRecord,
+  ExtraClass,
+  ExtraClassEnrollment,
+  ExtraClassAttendance,
+  ExtraClassPerformance,
 } from "@shared/schema";
 import { formatTimeInAlmaty, formatDateInAlmaty, formatDuration, formatCurrency } from "@/lib/formatters";
 
@@ -61,6 +66,17 @@ export default function ChildProfile() {
   
   const { data: invoices } = useQuery<Invoice[]>({
     queryKey: ["/api/children", id, "invoices"],
+  });
+  
+  const { data: attendance } = useQuery<AttendanceRecord[]>({
+    queryKey: ["/api/children", id, "attendance"],
+  });
+  
+  const { data: extraClasses } = useQuery<Array<{
+    enrollment: ExtraClassEnrollment;
+    class: ExtraClass | null;
+  }>>({
+    queryKey: ["/api/children", id, "extra-classes"],
   });
   
   if (isLoading) {
@@ -180,10 +196,14 @@ export default function ChildProfile() {
       
       {/* Tabs */}
       <Tabs value={tab} onValueChange={(v) => setLocation(`/children/${id}/${v}`)}>
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="day" data-testid="tab-day">
             <Clock className="h-4 w-4 mr-2" />
             {t("day")}
+          </TabsTrigger>
+          <TabsTrigger value="attendance" data-testid="tab-attendance">
+            <Calendar className="h-4 w-4 mr-2" />
+            {currentLanguage === "kk" ? "Қатысу" : "Посещаемость"}
           </TabsTrigger>
           <TabsTrigger value="health" data-testid="tab-health">
             <AlertCircle className="h-4 w-4 mr-2" />
@@ -257,6 +277,163 @@ export default function ChildProfile() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        {/* Attendance Tab */}
+        <TabsContent value="attendance">
+          <div className="space-y-6">
+            {/* Regular Attendance */}
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {currentLanguage === "kk" ? "Балабақшаға қатысу" : "Посещаемость детского сада"}
+                </CardTitle>
+                <CardDescription>
+                  {currentLanguage === "kk" ? "Соңғы 30 күн" : "Последние 30 дней"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {attendance && attendance.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-4 mb-4">
+                      <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {attendance.filter(a => a.checkInTime).length}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {currentLanguage === "kk" ? "Қатысқан" : "Посетил"}
+                        </p>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {Math.round((attendance.filter(a => a.checkInTime).length / attendance.length) * 100)}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {currentLanguage === "kk" ? "Қатысу" : "Процент"}
+                        </p>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-64">
+                      <div className="space-y-2">
+                        {attendance.slice(0, 10).map((record) => (
+                          <div key={record.id} className="flex items-center justify-between p-3 rounded-lg border" data-testid={`attendance-${record.id}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${record.checkInTime ? 'bg-green-500' : 'bg-gray-300'}`} />
+                              <div>
+                                <p className="font-medium">{formatDateInAlmaty(record.date, "dd MMMM yyyy", currentLanguage)}</p>
+                                {record.checkInTime && record.checkOutTime && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatTimeInAlmaty(record.checkInTime, "HH:mm", currentLanguage)} - {formatTimeInAlmaty(record.checkOutTime, "HH:mm", currentLanguage)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {record.checkInTime && (
+                              <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                {currentLanguage === "kk" ? "✓ Болды" : "✓ Присутствовал"}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                ) : (
+                  <p className="text-center py-8 text-muted-foreground">{t("noData")}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Extra Classes */}
+            {extraClasses && extraClasses.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    {currentLanguage === "kk" ? "Қосымша сабақтар" : "Дополнительные занятия"}
+                  </CardTitle>
+                  <CardDescription>
+                    {currentLanguage === "kk" ? "Қатысу және үлгерім" : "Посещаемость и успеваемость"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {extraClasses.map(({ enrollment, class: extraClass }) => {
+                      if (!extraClass) return null;
+                      
+                      const { data: classAttendance } = useQuery<ExtraClassAttendance[]>({
+                        queryKey: ["/api/enrollments", enrollment.id, "attendance"],
+                      });
+                      
+                      const { data: performance } = useQuery<ExtraClassPerformance[]>({
+                        queryKey: ["/api/enrollments", enrollment.id, "performance"],
+                      });
+                      
+                      const attendanceRate = classAttendance && classAttendance.length > 0
+                        ? Math.round((classAttendance.filter(a => a.attended).length / classAttendance.length) * 100)
+                        : 0;
+                      
+                      const latestPerformance = performance?.[0];
+                      
+                      return (
+                        <Card key={enrollment.id} className="bg-muted/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h4 className="font-semibold">{extraClass.name}</h4>
+                                <p className="text-sm text-muted-foreground">{extraClass.schedule}</p>
+                              </div>
+                              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                {extraClass.classType === "english" ? (currentLanguage === "kk" ? "Ағылшын" : "Английский") : 
+                                 extraClass.classType === "music" ? (currentLanguage === "kk" ? "Музыка" : "Музыка") : 
+                                 extraClass.classType}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="p-3 rounded-lg bg-background">
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  {currentLanguage === "kk" ? "Қатысу" : "Посещаемость"}
+                                </p>
+                                <p className="text-2xl font-bold">{attendanceRate}%</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {classAttendance?.filter(a => a.attended).length || 0} / {classAttendance?.length || 0} {currentLanguage === "kk" ? "сабақ" : "занятий"}
+                                </p>
+                              </div>
+                              
+                              <div className="p-3 rounded-lg bg-background">
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  {currentLanguage === "kk" ? "Үлгерім" : "Успеваемость"}
+                                </p>
+                                {latestPerformance ? (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-2xl font-bold">{latestPerformance.grade || latestPerformance.score}</p>
+                                      {latestPerformance.score && (
+                                        <span className="text-sm text-muted-foreground">({latestPerformance.score}/100)</span>
+                                      )}
+                                    </div>
+                                    {latestPerformance.teacherComments && (
+                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                        {latestPerformance.teacherComments}
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">
+                                    {currentLanguage === "kk" ? "Әлі жоқ" : "Пока нет"}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
         
         {/* Health Tab */}

@@ -739,26 +739,26 @@ export const accessLogs = pgTable("access_logs", {
 // INSERT SCHEMAS
 // ============================================================================
 
-export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
-export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertFacilitySchema = createInsertSchema(facilities).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertGroupSchema = createInsertSchema(groups).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChildSchema = createInsertSchema(children).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChildParentSchema = createInsertSchema(childParents).omit({ id: true, createdAt: true });
-export const insertStaffSchema = createInsertSchema(staff).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChildHealthSchema = createInsertSchema(childHealth).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChildAllergySchema = createInsertSchema(childAllergies).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChildMedicationSchema = createInsertSchema(childMedications).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChildDocumentSchema = createInsertSchema(childDocuments).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertDailyActivitySchema = createInsertSchema(dailyActivities).omit({ id: true, createdAt: true });
-export const insertChatThreadSchema = createInsertSchema(chatThreads).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAdditionalServiceSchema = createInsertSchema(additionalServices).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
-export const insertTrustedContactSchema = createInsertSchema(trustedContacts).omit({ id: true, createdAt: true });
+export const insertUserRoleSchema = createInsertSchema(userRoles);
+export const insertOrganizationSchema = createInsertSchema(organizations);
+export const insertFacilitySchema = createInsertSchema(facilities);
+export const insertGroupSchema = createInsertSchema(groups);
+export const insertChildSchema = createInsertSchema(children);
+export const insertChildParentSchema = createInsertSchema(childParents);
+export const insertStaffSchema = createInsertSchema(staff);
+export const insertChildHealthSchema = createInsertSchema(childHealth);
+export const insertChildAllergySchema = createInsertSchema(childAllergies);
+export const insertChildMedicationSchema = createInsertSchema(childMedications);
+export const insertChildDocumentSchema = createInsertSchema(childDocuments);
+export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords);
+export const insertDailyActivitySchema = createInsertSchema(dailyActivities);
+export const insertChatThreadSchema = createInsertSchema(chatThreads);
+export const insertMessageSchema = createInsertSchema(messages);
+export const insertInvoiceSchema = createInsertSchema(invoices);
+export const insertSubscriptionSchema = createInsertSchema(subscriptions);
+export const insertAdditionalServiceSchema = createInsertSchema(additionalServices);
+export const insertNotificationSchema = createInsertSchema(notifications);
+export const insertTrustedContactSchema = createInsertSchema(trustedContacts);
 
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;

@@ -2,16 +2,24 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Baby, CreditCard, MessageSquare, TrendingUp, ArrowRight, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin } from "lucide-react";
+import { Baby, CreditCard, MessageSquare, TrendingUp, ArrowRight, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Clock, Users, CheckCircle2, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency, formatDateInAlmaty, getNowInAlmaty } from "@/lib/formatters";
 import { useState } from "react";
-import type { Child, Invoice, Message, Event } from "@shared/schema";
+import type { Child, Invoice, Message, Event, DailyActivity, AttendanceRecord, ExtraClassEnrollment } from "@shared/schema";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-function MiniCalendar() {
+function MiniCalendar({ onDayClick }: { onDayClick: (date: Date) => void }) {
   const { currentLanguage } = useLanguage();
   const [currentDate, setCurrentDate] = useState(getNowInAlmaty());
   
@@ -36,9 +44,12 @@ function MiniCalendar() {
       currentDate.getMonth() === getNowInAlmaty().getMonth() &&
       currentDate.getFullYear() === getNowInAlmaty().getFullYear();
     
+    const clickedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    
     days.push(
       <button
         key={day}
+        onClick={() => onDayClick(clickedDate)}
         className={`h-8 flex items-center justify-center rounded-md text-sm transition-colors hover-elevate ${
           isToday ? "bg-primary text-primary-foreground font-bold" : "hover:bg-accent"
         }`}
@@ -106,6 +117,8 @@ function MiniCalendar() {
 export default function Dashboard() {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [dayDialogOpen, setDayDialogOpen] = useState(false);
   
   // Fetch data for dashboard cards
   const { data: children, isLoading: loadingChildren } = useQuery<Child[]>({
@@ -125,6 +138,28 @@ export default function Dashboard() {
     queryKey: ["/api/events"],
   });
   
+  // Fetch attendance records
+  const { data: attendanceRecords } = useQuery<AttendanceRecord[]>({
+    queryKey: ["/api/attendance"],
+  });
+  
+  // Fetch activities for selected date
+  const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : null;
+  const { data: dayActivities } = useQuery<DailyActivity[]>({
+    queryKey: ["/api/activities", selectedDateStr],
+    queryFn: async () => {
+      if (!selectedDateStr) return [];
+      const response = await fetch(`/api/activities?date=${selectedDateStr}`);
+      if (!response.ok) throw new Error("Failed to fetch activities");
+      return response.json();
+    },
+    enabled: !!selectedDateStr && dayDialogOpen,
+  });
+  
+  const { data: extraClassEnrollments } = useQuery<ExtraClassEnrollment[]>({
+    queryKey: ["/api/extra-classes/enrollments"],
+  });
+  
   // Get today's child activity (mock for now)
   const todayChild = children?.[0];
   
@@ -137,6 +172,29 @@ export default function Dashboard() {
   
   // Get upcoming events (next 5)
   const upcomingEvents = events?.filter(event => new Date(event.startDate) >= new Date()).slice(0, 5) || [];
+  
+  // Calculate attendance statistics
+  const totalDays = attendanceRecords?.length || 0;
+  const attendedDays = attendanceRecords?.filter(r => r.checkInTime).length || 0;
+  const attendanceRate = totalDays > 0 ? Math.round((attendedDays / totalDays) * 100) : 0;
+  
+  // Extra class attendance
+  const extraClassDays = extraClassEnrollments?.filter(e => e.isActive).length || 0;
+  
+  const handleDayClick = (date: Date) => {
+    setSelectedDate(date);
+    setDayDialogOpen(true);
+  };
+  
+  // Get events for selected day
+  const selectedDayEvents = selectedDate 
+    ? events?.filter(event => {
+        const eventDate = new Date(event.startDate);
+        return eventDate.getDate() === selectedDate.getDate() &&
+               eventDate.getMonth() === selectedDate.getMonth() &&
+               eventDate.getFullYear() === selectedDate.getFullYear();
+      }) || []
+    : [];
   
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -296,34 +354,48 @@ export default function Dashboard() {
           </CardFooter>
         </Card>
         
-        {/* Card 4: Analytics/Overview */}
-        <Card className="hover:shadow-lg transition-shadow" data-testid="card-analytics">
+        {/* Card 4: Attendance */}
+        <Card className="hover:shadow-lg transition-shadow" data-testid="card-attendance">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-lg font-semibold">
-                {currentLanguage === "kk" ? "Шолу" : "Обзор"}
+                {currentLanguage === "kk" ? "Қатысу" : "Посещаемость"}
               </CardTitle>
               <CardDescription>
-                {currentLanguage === "kk" ? "Негізгі көрсеткіштер" : "Ключевые показатели"}
+                {currentLanguage === "kk" ? "Балабақша және доп. сабақтар" : "Детский сад и доп. занятия"}
               </CardDescription>
             </div>
             <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              <Users className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
-                  {currentLanguage === "kk" ? "Қатысу" : "Посещаемость"}
-                </span>
-                <span className="font-semibold">95%</span>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">
+                    {currentLanguage === "kk" ? "Балабақша" : "Детский сад"}
+                  </span>
+                  <span className="font-semibold">{attendanceRate}%</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  {attendedDays} / {totalDays} {currentLanguage === "kk" ? "күн" : "дней"}
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
-                  {currentLanguage === "kk" ? "Активті күндер" : "Активных дней"}
-                </span>
-                <span className="font-semibold">18/20</span>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">
+                    {currentLanguage === "kk" ? "Қосымша сабақтар" : "Дополнительные занятия"}
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {extraClassDays} {currentLanguage === "kk" ? "белсенді" : "активных"}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                  {currentLanguage === "kk" ? "Ағылшын, Музыка" : "Английский, Музыка"}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -341,7 +413,7 @@ export default function Dashboard() {
       {/* Calendar and Events Section */}
       <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <MiniCalendar />
+          <MiniCalendar onDayClick={handleDayClick} />
         </div>
         
         {/* Upcoming Events */}
@@ -428,6 +500,109 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Day Details Dialog */}
+      <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedDate ? formatDateInAlmaty(selectedDate, "EEEE, d MMMM yyyy", currentLanguage) : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {currentLanguage === "kk" 
+                ? "Күнтізбелік оқиғалар және сағаттық кесте"
+                : "События и почасовое расписание"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6">
+              {/* Events for the day */}
+              {selectedDayEvents.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    {currentLanguage === "kk" ? "Оқиғалар" : "События"}
+                  </h4>
+                  <div className="space-y-3">
+                    {selectedDayEvents.map((event) => (
+                      <div key={event.id} className="border rounded-lg p-3 bg-muted/50">
+                        <div className="flex items-start justify-between mb-1">
+                          <h5 className="font-medium">{event.title}</h5>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDateInAlmaty(event.startDate, "HH:mm", currentLanguage)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          {event.description}
+                        </p>
+                        {event.location && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            {event.location}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Hourly schedule */}
+              {dayActivities && dayActivities.length > 0 ? (
+                <div>
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    {currentLanguage === "kk" ? "Сағаттық кесте" : "Почасовое расписание"}
+                  </h4>
+                  <div className="space-y-2">
+                    {dayActivities
+                      .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                      .map((activity) => (
+                        <div key={activity.id} className="flex items-start gap-3 border-l-2 border-primary pl-3 py-2">
+                          <div className="min-w-[60px] text-sm font-medium text-primary">
+                            {formatDateInAlmaty(activity.time, "HH:mm", currentLanguage)}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">
+                                {activity.activityType === "meal" ? (currentLanguage === "kk" ? "Тамақ" : "Питание") :
+                                 activity.activityType === "sleep" ? (currentLanguage === "kk" ? "Ұйқы" : "Сон") :
+                                 activity.activityType === "activity" ? (currentLanguage === "kk" ? "Белсенділік" : "Активность") :
+                                 activity.activityType}
+                              </Badge>
+                              {activity.duration && (
+                                <span className="text-xs text-muted-foreground">
+                                  {activity.duration} {currentLanguage === "kk" ? "мин" : "мин"}
+                                </span>
+                              )}
+                              {activity.appetite && (
+                                <span className="text-xs text-muted-foreground">
+                                  {activity.appetite}%
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm">{activity.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : selectedDateStr && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">
+                    {currentLanguage === "kk" 
+                      ? "Бұл күнге жоспарланған белсенділіктер жоқ"
+                      : "Нет запланированных активностей на этот день"
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

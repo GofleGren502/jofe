@@ -8,6 +8,7 @@ import {
   childDocuments,
   dailyActivities,
   attendanceRecords,
+  childParents,
   staff,
   chatThreads,
   messages,
@@ -23,7 +24,7 @@ import {
   extraClassAttendance,
   extraClassPerformance,
 } from "@shared/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, canAccessChild } from "./middleware/rbac";
 import { logAccess } from "./middleware/accessLog";
 
@@ -111,6 +112,109 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Error fetching activities:", error);
       res.status(500).json({ message: "Failed to fetch activities" });
+    }
+  });
+
+  // Dashboard endpoints - scoped to current user's children
+  app.get("/api/attendance", requireAuth, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Get children IDs for current user
+      const userChildren = await db
+        .select({ childId: childParents.childId })
+        .from(childParents)
+        .where(eq(childParents.parentUserId, req.user.id));
+      
+      if (userChildren.length === 0) {
+        return res.json([]);
+      }
+      
+      const childIds = userChildren.map(c => c.childId);
+      
+      const records = await db
+        .select()
+        .from(attendanceRecords)
+        .where(inArray(attendanceRecords.childId, childIds))
+        .orderBy(desc(attendanceRecords.date))
+        .limit(30);
+      
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching attendance:", error);
+      res.status(500).json({ message: "Failed to fetch attendance" });
+    }
+  });
+
+  app.get("/api/activities", requireAuth, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const date = req.query.date as string;
+      
+      if (!date) {
+        return res.status(400).json({ message: "Date parameter is required" });
+      }
+      
+      // Get children IDs for current user
+      const userChildren = await db
+        .select({ childId: childParents.childId })
+        .from(childParents)
+        .where(eq(childParents.parentUserId, req.user.id));
+      
+      if (userChildren.length === 0) {
+        return res.json([]);
+      }
+      
+      const childIds = userChildren.map(c => c.childId);
+      
+      const activities = await db
+        .select()
+        .from(dailyActivities)
+        .where(and(
+          eq(dailyActivities.date, date),
+          inArray(dailyActivities.childId, childIds)
+        ))
+        .orderBy(dailyActivities.time);
+      
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      res.status(500).json({ message: "Failed to fetch activities" });
+    }
+  });
+
+  app.get("/api/extra-classes/enrollments", requireAuth, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Get children IDs for current user
+      const userChildren = await db
+        .select({ childId: childParents.childId })
+        .from(childParents)
+        .where(eq(childParents.parentUserId, req.user.id));
+      
+      if (userChildren.length === 0) {
+        return res.json([]);
+      }
+      
+      const childIds = userChildren.map(c => c.childId);
+      
+      const enrollments = await db
+        .select()
+        .from(extraClassEnrollments)
+        .where(inArray(extraClassEnrollments.childId, childIds));
+      
+      res.json(enrollments);
+    } catch (error) {
+      console.error("Error fetching enrollments:", error);
+      res.status(500).json({ message: "Failed to fetch enrollments" });
     }
   });
   

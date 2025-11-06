@@ -625,22 +625,19 @@ export function registerRoutes(app: Express) {
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
       
-      let query = db
-        .select()
-        .from(attendanceRecords)
-        .where(eq(attendanceRecords.childId, childId));
+      const conditions = [eq(attendanceRecords.childId, childId)];
       
       if (startDate && endDate) {
-        query = query.where(
-          and(
-            eq(attendanceRecords.childId, childId),
-            sql`${attendanceRecords.date} >= ${startDate}`,
-            sql`${attendanceRecords.date} <= ${endDate}`
-          )
-        ) as typeof query;
+        conditions.push(sql`${attendanceRecords.date} >= ${startDate}`);
+        conditions.push(sql`${attendanceRecords.date} <= ${endDate}`);
       }
       
-      const records = await query.orderBy(desc(attendanceRecords.date));
+      const records = await db
+        .select()
+        .from(attendanceRecords)
+        .where(and(...conditions))
+        .orderBy(desc(attendanceRecords.date));
+        
       res.json(records);
     } catch (error) {
       console.error("Error fetching attendance:", error);

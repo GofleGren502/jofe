@@ -132,8 +132,8 @@ export default function Dashboard() {
   const pendingInvoices = invoices?.filter(inv => inv.status === "pending") || [];
   const totalDue = pendingInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
   
-  // Get unread messages
-  const unreadMessages = messages?.filter(m => !m.readReceipts?.length) || [];
+  // Get unread messages (simplified - just show all recent messages)
+  const unreadMessages = messages || [];
   
   // Get upcoming events (next 5)
   const upcomingEvents = events?.filter(event => new Date(event.startDate) >= new Date()).slice(0, 5) || [];
@@ -276,9 +276,11 @@ export default function Dashboard() {
             ) : messages && messages.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-sm line-clamp-2">{messages[0].content}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDateInAlmaty(messages[0].createdAt, "HH:mm", currentLanguage)}
-                </p>
+                {messages[0].createdAt && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateInAlmaty(messages[0].createdAt, "HH:mm", currentLanguage)}
+                  </p>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">{t("noData")}</p>
